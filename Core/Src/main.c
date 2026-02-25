@@ -1,177 +1,99 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
-#include "main.h"
+#include <stdlib.h>
+#include "gpio.h"
+#include "stm32f4xx.h"
+#include "tim2.h"
+#include "uart2.h"
+#define CMD_BUFFER_SIZE 32
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+volatile led_state_t led_state = LED_MANUAL_OFF;
 
-/* USER CODE END Includes */
 
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
+char cmd_buffer[CMD_BUFFER_SIZE];
+ memset(cmd_buffer, 0, CMD_BUFFER_SIZE);
+ uint8_t cmd_index = 0;
 
-/* USER CODE END PTD */
+int main(void) {
 
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
+	PA5_Init(); // Enable GPIOA clock (AHB1 bus, bit 0)
+    ADC1_Init(); // Initialize
+    UART2_Init(9600); // Initialize UART2
+    TIM2_Init(); // Initialize TIM2 (but don't start it)
+    timer_stop();  // Make sure it's stopped initially
+    UART2_SendString("---STM32 CLI---\r\n");
+    UART2_SendString("Type HELP for commands\r\n\r\n");
+    UART2_SendString("> ");
 
-/* USER CODE END PD */
+    while(1)
+    {
+    	char c = UART2_ReadChar(); //Extracts each character from the user enterred command
+    	if(c=='\r') //checks if Enter(\r) is pressed
+    	{
+    		UART2_SendString("\r\n");
 
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
+    		//Start of task
+    		if(strcmp(cmd_buffer, "HELP")==0)
+    		{
+    		 UART2_SendString("Available commands:\r\n");
+    		 UART2_SendString("  LED ON   - Turn LED on\r\n");
+    		 UART2_SendString("  LED OFF  - Turn LED off\r\n");
+    		 UART2_SendString("  BLINK    - Blink LED at 1Hz\r\n");
+    		 UART2_SendString("  STATUS   - Check LED state\r\n");
+    		 UART2_SendString("  HELP     - Show this help\r\n");
+    		}
+    		 else if(strcmp(cmd_buffer, "LED ON")==0)
+			 {
+    		  timer_stop();
+    		  led_state = LED_MANUAL_ON;
+			  GPIOA->ODR |= (1<<5);
+			  UART2_SendString("LED turned ON\r\n");
+			 }
+			 else if(strcmp(cmd_buffer,"LED OFF")==0)
+			 {
+			  timer_stop();
+			  led_state = LED_MANUAL_OFF;
+			  GPIOA->ODR &= ~(1<<5);
+			  UART2_SendString("LED turned OFF\r\n");
+			 }
+			 else if(strcmp(cmd_buffer,"BLINK")==0)
+			 {
+			  led_state = LED_AUTO_BLINK;
+			  timer_start();
+			  UART2_SendString("LED auto-blinking at 1 Hz\r\n");
+			 }
+			 else if(strcmp(cmd_buffer,"STATUS")==0)
+			 {
+				 if (GPIOA->ODR & (1 << 5)) //if ODR is 1 output is 1 so it means LED is ON at that instant
+				 {
+				  UART2_SendString("LED is ON\r\n");
+				 }
+				 else
+				 {
+				  UART2_SendString("LED is OFF\r\n");
+				 }
+			 }
+			 else if (cmd_index > 0)
+			 {  // Non-empty unknown command
+			  UART2_SendString("Unknown command: ");
+			  UART2_SendString(cmd_buffer);
+			  UART2_SendString("\r\nType HELP for commands\r\n");
+			 }
+    		//Emd of task
+    		//clear the command buffer
+    		cmd_index = 0;
+    		UART2_SendString("> ");
+    	}
+    	else if(c==127 || c==8) //128 is ASCII DEL button and ASCII 8 is Backspace
+    	{
+    	 if(cmd_index>0)
+    	    cmd_index--;
+    	   UART2_SendString("\b \b"); //To erase the character on screen
+    	}
+    	else if(cmd_index < CMD_BUFFER_SIZE-1) //normal characters
+    	{
+    		cmd_buffer[cmd_index++]=c;
+    		cmd_buffer[cmd_index] = '\0';
+    		UART2_SendChar(c); //echo the character typed
+    	}
+    }
 
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
-
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
 }
-
-/**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
-  /** Configure the main internal regulator output voltage
-  */
-  __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-}
-
-/* USER CODE BEGIN 4 */
-
-/* USER CODE END 4 */
-
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
-  /* USER CODE END Error_Handler_Debug */
-}
-
-#ifdef  USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t *file, uint32_t line)
-{
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
-}
-#endif /* USE_FULL_ASSERT */
