@@ -1,21 +1,20 @@
-#include <stdlib.h>
 #include "gpio.h"
 #include "stm32f4xx.h"
 #include "tim2.h"
 #include "uart2.h"
+#include <string.h>
 #define CMD_BUFFER_SIZE 32
 
 volatile led_state_t led_state = LED_MANUAL_OFF;
 
 
 char cmd_buffer[CMD_BUFFER_SIZE];
- memset(cmd_buffer, 0, CMD_BUFFER_SIZE);
  uint8_t cmd_index = 0;
 
 int main(void) {
-
+	cmd_index = 0;
+	cmd_buffer[0] = '\0';
 	PA5_Init(); // Enable GPIOA clock (AHB1 bus, bit 0)
-    ADC1_Init(); // Initialize
     UART2_Init(9600); // Initialize UART2
     TIM2_Init(); // Initialize TIM2 (but don't start it)
     timer_stop();  // Make sure it's stopped initially
@@ -44,14 +43,14 @@ int main(void) {
 			 {
     		  timer_stop();
     		  led_state = LED_MANUAL_ON;
-			  GPIOA->ODR |= (1<<5);
+			  LED_ON();
 			  UART2_SendString("LED turned ON\r\n");
 			 }
 			 else if(strcmp(cmd_buffer,"LED OFF")==0)
 			 {
 			  timer_stop();
 			  led_state = LED_MANUAL_OFF;
-			  GPIOA->ODR &= ~(1<<5);
+			  LED_OFF();
 			  UART2_SendString("LED turned OFF\r\n");
 			 }
 			 else if(strcmp(cmd_buffer,"BLINK")==0)
@@ -82,7 +81,7 @@ int main(void) {
     		cmd_index = 0;
     		UART2_SendString("> ");
     	}
-    	else if(c==127 || c==8) //128 is ASCII DEL button and ASCII 8 is Backspace
+    	else if(c==127 || c==8) //127 is ASCII DEL button and ASCII 8 is Backspace
     	{
     	 if(cmd_index>0)
     	    cmd_index--;
