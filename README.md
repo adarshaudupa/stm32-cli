@@ -17,7 +17,7 @@ A production-grade UART CLI implementation for the STM32F446RE Nucleo board, bui
 ##  Features
 
 ### UART Communication
-- **Interrupt-driven RX**: RXNE interrupt with 256-byte circular buffer
+- **Interrupt-driven RX**: RXNE interrupt with 64-byte circular buffer
 - **Polling TX**: Blocking transmit optimized for debug output
 - **Manual BRR calculation** from APB1 clock frequency (115200 baud)
 - **Echo and backspace handling** for real terminal feel
@@ -31,8 +31,8 @@ A production-grade UART CLI implementation for the STM32F446RE Nucleo board, bui
 
 ### LED Control
 - Direct register manipulation (no abstraction layers)
-- Multiple control modes: manual ON/OFF, TOGGLE, STATUS query
-- Integrated with timer-based state machine (optional BLINK mode)
+- Multiple control modes: manual ON/OFF, BLINK, STATUS query
+- Integrated with timer-based state machine
 
 ### Professional Code Quality
 - Clean separation of concerns (driver vs. application logic)
@@ -122,7 +122,7 @@ Type HELP for commands
 Available commands:
   LED ON    - Turn LED on
   LED OFF   - Turn LED off
-  TOGGLE    - Toggle LED state
+  BLINK     - Blink LED
   STATUS    - Check LED state
   HELP      - Show this help
 
@@ -131,9 +131,6 @@ LED turned ON
 
 > STATUS
 LED is ON
-
-> TOGGLE
-LED toggled
 
 > STATUS
 LED is OFF
@@ -148,7 +145,6 @@ LED auto-blink enabled (1 Hz)
 |---------|-------------|---------|
 | `LED ON` | Force LED on | `> LED ON` |
 | `LED OFF` | Force LED off | `> LED OFF` |
-| `TOGGLE` | Toggle LED state | `> TOGGLE` |
 | `STATUS` | Display current LED state | `> STATUS` |
 | `BLINK` | Enable timer-controlled auto-blink | `> BLINK` |
 | `HELP` | Show command list | `> HELP` |
