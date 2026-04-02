@@ -3,7 +3,7 @@
 #include "tim2.h"
 #include "uart2.h"
 #include <string.h>
-#define CMD_BUFFER_SIZE 32
+#define CMD_BUFFER_SIZE 64
 
 volatile led_state_t led_state = LED_MANUAL_OFF;
 
