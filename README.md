@@ -1,360 +1,90 @@
-## **STM32 CLI Framework** 
+6/14/26, 9:56 PM 
 
-Interrupt-driven command-line interface framework for the STM32F446RE built entirely with register-level programming and CMSIS, without HAL or middleware abstractions. 
+Embedded Systems Skill Building Roadmap ~~-~~ Google Gemini 
 
-Platform 
+## STM32 Bare-Metal CLI 
 
-Architecture 
+A deterministic, zero-allocation command-line interface engineered at the silicon level for the ARM Cortex-M4. 
 
-Language 
+Overview: This project bypasses heavy Hardware Abstraction Layer (HAL) state machines in favor of direct register-level execution. It provides a robust asynchronous serial terminal capable of hot-swapping hardware baud rates, parsing ANSI escape sequences, and managing command history with strict O(1) execution time. 
 
-Style 
+## Architectural Highlights 
 
-License 
+## 1. Float-Free Register Math 
 
-## **Overview** 
+Standard baud rate configuration relies on memory-heavy floating-point division. This architecture replaces standard <math.h> dependencies with highly optimized integer arithmetic and modulo rounding ( pclk % (16 * baud) ) to calculate the USART BRR (Baud Rate Register) mantissa and fraction. 
 
-This project implements a lightweight command-line interface (CLI) framework running on an STM32F446RE Nucleo board. 
+## 2. Asynchronous UART Ring Buffer 
 
-The system combines: 
+The core reception pipeline is entirely non-blocking. A dedicated USART2 ~~_~~ IRQHandler absorbs incoming bytes into a circular _r ~~x_~~ buffer atthe silicon level, decoupling the physical wire speed from the main CPU control loop. 
 
-- Interrupt-driven UART reception 
+## 3. The ANSI Escape State Machine 
 
-- Circular-buffer-based data handling 
+Arrow keys do not send standard ASCII characters; they transmit multi-byte ANSI escape sequences (e.g., \x1B[A ). This CLI features a dedicated UART Interceptor State Machine that catches the \x1B (ESC) byte, silently parses the sequence, and triggers history recall without ever polluting the live volatile command buffer. 
 
-- Interactive command processing 
+## 4. O(1) Circular History Buffer 
 
-- Command history navigation 
+Command history is managed via a statically allocated 2D ring buffer. When saving new commands or browsing history, the system strictly moves a memory pointer ( write ~~_~~ index ), avoiding the massive CPU overhead of shifting memory arrays with memcpy() . 
 
-- Timer-driven background execution 
+## Command Reference 
 
-- Runtime peripheral reconfiguration 
+## Command Hardware Action 
 
-Unlike typical UART examples, this project focuses on firmware architecture and embedded software design principles commonly used in production systems. 
+## Execution Mechanism 
 
-No HAL drivers are used. All peripherals are configured through direct register access using CMSIS device definitions. 
+HELP Lists available commands. Direct string literal transmission. 
 
-## **Key Features** 
+https://gemini.google.com/app/cc65156a13aaeb7a 
 
-## **UART Subsystem** 
+1/2 
 
-- USART2 register-level configuration 
-
-- Interrupt-driven RX path 
-
-- Circular receive buffer 
-
-- 
-
-1 
-
-- Runtime baud-rate switching 
-
-- Character echo support • Backspace handling 
-
-- Terminal-compatible operation 
-
-## **CLI Engine** 
-
-- Interactive shell interface 
-
-- Command parsing and execution 
-
-- Command history support 
-
-- Up-arrow / Down-arrow navigation 
-
-- Escape-sequence processing • Help system 
-
-- Invalid command detection 
-
-## **Timer Integration** 
-
-- TIM2 interrupt configuration 
-
-- Autonomous LED blinking 
-
-- Background execution independent of CLI processing 
-
-## **Firmware Design** 
-
-- Bare-metal implementation 
-
-- Modular driver architecture 
-
-- CMSIS-only development 
-
-- No dynamic memory allocation 
-
-- Interrupt-driven communication model 
-
-## **Demonstrated Embedded Concepts** 
-
-|Category|Concepts|
-|---|---|
-|Peripheral Programming|RCC, GPIO, USART, TIM|
-|Interrupts|RXNE interrupts, timer interrupts, NVIC confguration|
-|Data Structures|Circular bufers, command history ring bufer|
-|CLI Design|Parsing, dispatching, command management|
-|State Management|LED state machine|
-|Runtime Confguration|Dynamic UART baud-rate changes|
-|Embedded Architecture|Driver separation and modular frmware design|
-
-
-
-2 
-
-## **System Architecture** 
-
-**==> picture [456 x 381] intentionally omitted <==**
+**==> picture [511 x 391] intentionally omitted <==**
 
 **----- Start of picture text -----**<br>
-                    ┌─────────────────┐<br>                    │ Serial Terminal │<br>                    └────────┬────────┘<br>                             │<br>                             ▼<br>                  ┌────────────────────┐<br>                  │      USART2        │<br>                  │ RX Interrupts      │<br>                  └────────┬───────────┘<br>                           │<br>                           ▼<br>                  ┌────────────────────┐<br>                  │ Circular RX Buffer │<br>                  └────────┬───────────┘<br>                           │<br>                           ▼<br>                  ┌────────────────────┐<br>                  │     CLI Engine     │<br>                  └───────┬────────────┘<br>                          │<br>            ┌─────────────┼─────────────┐<br>            │             │             │<br>            ▼             ▼             ▼<br>      LED Control    Timer Control   UART Control<br>          GPIO            TIM2          USART2<br>**----- End of picture text -----**<br>
+||||||||||||||||||
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+|6/14/26,|9:56|PM|Embedded|Systems|Skill|Building|Roadmap|-|Google|Gemini|
+|LED|ON|Drives|PA5|HIGH.|Atomic|assignment|to|BSRR|lower|16|bits.|
+|LED|OFF|Drives|PA5|LOW.|Atomic|assignment|to|BSRR|upper|16|bits.|
+|BLINK|Blinks|LED|at|1|Hz.|TIM2|Hardware|Timer|ISR|trigger.|
+|STATUS|Reads|physical|pin|state.|Hardware|masking|of the|ODR|register.|
+|SET|BAUD|Dynamically|hot-swaps|UART|Bypasses|atoi()|.|Custom|ASCIl-to-integer|parser|
+|<rate>|baud|rate|(e.g.,|SET|BAUD|writes|to|USART2|-|>BRR|.|Blocks|onthe|TC|flag|to|
+|115200|).|prevent|physical|wire|corruption.|
+|Use|the UP and DOWN arrow keys|to|navigate|the command history.|
+|Hardware|Integration|
+|This|firmware|is|targeted|for the STM32|Nucleo-F446RE|development|board.|
+|Component|Pin|Peripheral|Configuration|
+|UART|TX|PA2|USART2|Alternate|Function|7|(AF7)|
+|UART|RX|PA3|USART2|Alternate|Function|7|(AF7)|
+|User|LED|PA5|GPIOA|General|Purpose|Output|(Push-Pull)|
 
+**----- End of picture text -----**<br>
 
-## **Hardware Platform** 
 
-|Item|Specifcation|
-|---|---|
-|Board|STM32 Nucleo-F446RE|
-|MCU|STM32F446RET6|
-|Core|ARM Cortex-M4|
-|Clock Source|HSI (16 MHz)|
-|UART|USART2|
-|Timer|TIM2|
+## Default Serial Connection: 
 
+- e Baud Rate: 9620 (Configurable via CLI) 
 
+- e Data Bits: 8 
 
-3 
+- e Parity: None 
 
-|Item|Specifcation|
-|---|---|
-|LED|LD2 (PA5)|
+- e Stop Bits: 1 
 
+## Compilation & Flashing 
 
+1. Clone this repository to your local machine. 
 
-## **Pin Configuration** 
+2. Import the project directory into STM32CubelDE. 
 
-|Peripheral|Pin|Function|
-|---|---|---|
-|USART2_TX|PA2|UART Transmit|
-|USART2_RX|PA3|UART Receive|
-|LD2|PA5|Onboard User LED|
+3. Build the project ( Project -> Build Project ). 
 
+4. Flashthe compiled .elf binary to the STM32F446RE board via the onboard ST-LINK. 
 
+5. Opena serial terminal (PuTTY, Teralerm, etc.) mapped to the ST-LINK Virtual COM port using the default settings above. 
 
-## **Supported Commands** 
+https://gemini.google.com/app/cc65156a13aaeb7a 
 
-|Command|Description|
-|---|---|
-|HELP|Display command list|
-|LED ON|Turn LED on|
-|LED OFF|Turn LED of|
-|BLINK|Enable timer-driven blinking|
-|STATUS|Display LED state|
-|SET BAUD \<rate>|Change UART baud rate|
-
-
-
-## **Example Session** 
-
-```
----STM32 CLI---
-Type HELP for commands
-> HELP
-Available commands:
-  LED ON
-  LED OFF
-  BLINK
-  STATUS
-  SET BAUD <rate>
-```
-
-4 
-
-```
-> LED ON
-LED turned ON
-> STATUS
-LED is ON
-> BLINK
-LED auto-blinking at 1 Hz
-> SET BAUD 115200
-Changing baud rate to 115200...
-Please update your serial terminal to match!
-```
-
-## **Command History Implementation** 
-
-The CLI supports navigation through previously executed commands using terminal arrow keys. 
-
-```
-↑ Previous Command
-↓ Next Command
-```
-
-A fixed-size circular history buffer is maintained internally. 
-
-```
-History Buffer
-┌─────┬─────┬─────┬─────┬─────┐
-│CMD1 │CMD2 │CMD3 │CMD4 │CMD5 │
-└─────┴─────┴─────┴─────┴─────┘
-```
-
-## **Runtime Baud Reconfiguration** 
-
-The UART driver supports runtime baud-rate updates without reflashing firmware. 
-
-Example: 
-
-```
-SET BAUD 9600
-SET BAUD 57600
-SET BAUD 115200
-```
-
-The BRR register is recalculated dynamically based on the active APB1 clock frequency. 
-
-5 
-
-## **Repository Structure** 
-
-```
-Core
-├── Inc
-│   ├── clock.h
-│   ├── gpio.h
-│   ├── tim2.h
-│   └── uart2.h
-│
-└── Src
-    ├── clock.c
-    ├── gpio.c
-    ├── main.c
-    ├── tim2.c
-    └── uart2.c
-```
-
-## **Engineering Decisions** 
-
-## **Why Interrupt-Driven RX?** 
-
-Polling wastes CPU cycles and risks missing incoming data. 
-
-Using RXNE interrupts allows asynchronous reception while the main application remains responsive. 
-
-## **Why Circular Buffers?** 
-
-A circular buffer cleanly separates: 
-
-- ISR producer 
-
-- Main-loop consumer 
-
-This is a common pattern in embedded communication stacks. 
-
-## **Why Bare-Metal Development?** 
-
-The objective is to understand: 
-
-- Peripheral registers 
-
-- Clock trees 
-
-- Interrupt systems 
-
-- Memory-mapped I/O 
-
-- Hardware-software interaction 
-
-6 
-
-rather than relying on abstraction layers. 
-
-## **Current Limitations** 
-
-- TX path is blocking 
-
-- UART error conditions are not yet handled 
-
-- RX buffer overflow detection is not implemented 
-
-- Command dispatch uses chained string comparisons 
-
-- No DMA support 
-
-These limitations are intentionally left visible to highlight future architectural improvements. 
-
-## **Future Roadmap** 
-
-## **Communication** 
-
-- DMA-based UART transmission 
-
-- UART error recovery 
-
-- Configurable RX/TX buffers 
-
-## **CLI** 
-
-- Command registration table 
-
-- Command auto-completion 
-
-- Parameter validation framework 
-
-- Command aliases 
-
-## **Firmware Architecture** 
-
-- Event-driven command dispatcher 
-
-- Watchdog integration 
-
-- Low-power operation 
-
-- RTOS-based task separation 
-
-## **Learning Outcomes** 
-
-This project demonstrates practical experience with: 
-
-- STM32 peripheral configuration 
-
-- Interrupt-driven firmware 
-
-- Circular buffer design 
-
-- 
-
-- Command-line interface development 
-
-- Embedded state machines 
-
-7 
-
-- Timer-based scheduling 
-
-- Runtime peripheral configuration 
-
-- Modular firmware architecture 
-
-## **Author** 
-
-## **Adarsha Udupa** 
-
-Electronics & Instrumentation Engineering 
-
-Firmware & Embedded Systems Development 
-
-GitHub: https://github.com/adarshaudupa 
-
-## **License** 
-
-MIT License 
-
-See the LICENSE file for details. 
-
-8 
+2/2 
 
