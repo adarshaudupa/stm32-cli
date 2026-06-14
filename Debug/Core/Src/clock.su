@@ -1,0 +1,4 @@
+../Core/Src/clock.c:11:10:get_sysclk_freq_hz	16	static
+../Core/Src/clock.c:29:17:get_ahb_freq_hz	24	static
+../Core/Src/clock.c:41:10:get_apb1_freq_hz	24	static
+../Core/Src/clock.c:53:10:get_apb2_freq_hz	24	static
