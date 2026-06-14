@@ -15,7 +15,7 @@ int main(void) {
 	cmd_index = 0;
 	cmd_buffer[0] = '\0';
 	PA5_Init(); // Enable GPIOA clock (AHB1 bus, bit 0)
-    UART2_Init(9600); // Initialize UART2
+    UART2_Init(); // Initialize UART2
     TIM2_Init(); // Initialize TIM2 (but don't start it)
     timer_stop();  // Make sure it's stopped initially
     UART2_SendString("---STM32 CLI---\r\n");
@@ -37,6 +37,7 @@ int main(void) {
     		 UART2_SendString("  LED OFF  - Turn LED off\r\n");
     		 UART2_SendString("  BLINK    - Blink LED at 1Hz\r\n");
     		 UART2_SendString("  STATUS   - Check LED state\r\n");
+    		 UART2_SendString("  SET BAUD <rate> - Set UART baud rate\r\n");
     		 UART2_SendString("  HELP     - Show this help\r\n");
     		}
     		 else if(strcmp(cmd_buffer, "LED ON")==0)
@@ -69,6 +70,33 @@ int main(void) {
 				 {
 				  UART2_SendString("LED is OFF\r\n");
 				 }
+			 }
+			 else if (strncmp(cmd_buffer, "SET BAUD ", 9) == 0)
+			 {
+				 uint32_t baud = 0;
+				 uint8_t i = 9;
+				 while (cmd_buffer[i] >= '0' && cmd_buffer[i] <= '9' && cmd_buffer[i] != '\0')
+				 {
+					 baud = (baud * 10) + (cmd_buffer[i] - '0');
+					 i++;
+				 }
+				 if (baud > 0)
+				 {
+					 UART2_SendString("Changing baud rate to ");
+					 UART2_SendString(&cmd_buffer[9]);
+					 UART2_SendString("...\r\n");
+					 UART2_SendString("Please update your serial terminal to match!\r\n");
+					 // WAIT FOR TRANSMISSION COMPLETE
+					 // SR bit 6: TC (Transmission Complete)
+					 // Ensure the last character is physically pushed out of the shift register
+					 while (!(USART2->SR & (1 << 6)));
+					 // Update the hardware registers
+					 UART2_SetBaud(baud);
+					}
+				  else
+					  {
+					   UART2_SendString("> Error: Invalid baud rate format.\r\n");
+					   }
 			 }
 			 else if (cmd_index > 0)
 			 {  // Non-empty unknown command

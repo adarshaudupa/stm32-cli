@@ -17,17 +17,17 @@ void PA5_Init(void)
 
 void LED_ON(void)
 {
- GPIOA->ODR |= (1<<5);
+ GPIOA->BSRR |= (1<<5);
 }
 
 void LED_OFF(void)
 {
- GPIOA->ODR &= ~(1<<5);
+ GPIOA->BSRR |= (1<<21);
 }
 
 void LED_Toggle(void)
 {
- GPIOA->ODR ^= (1<<5);
+ GPIOA->BSRR ^= (1<<5);
 }
 
 void PC13_Init(void)

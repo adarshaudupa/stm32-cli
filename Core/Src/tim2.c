@@ -14,6 +14,7 @@ void timer_start(void) {
 
 void timer_stop(void) {
     TIM2->CR1 &= ~(1 << 0);
+    TIM2->SR &= ~(1 << 0);
     TIM2->CNT = 0;
 }
 

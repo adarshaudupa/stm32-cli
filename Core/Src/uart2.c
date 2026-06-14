@@ -5,7 +5,9 @@
  */
 
 #include "uart2.h"
-#include "stm32f4xx.h"  // Register definitions
+#include "stm32f4xx.h"
+#include "clock.h"
+// Register definitions
 
 // ============================================================================
 // CIRCULAR BUFFER FOR RX DATA
@@ -21,7 +23,8 @@ volatile uint8_t rx_tail = 0;  // Main reads here
 // INITIALIZATION
 // ============================================================================
 
-void UART2_Init(uint32_t baudrate) {
+void UART2_Init(void)
+{
 	// ========================================================================
 	    // STEP 1: ENABLE CLOCKS
 	    // ========================================================================
@@ -48,7 +51,7 @@ void UART2_Init(uint32_t baudrate) {
 	// Formula: BRR = f_PCLK / (16 * baudrate)
 	// APB1 clock = 16 MHz (default after reset)
 	// For 9600: BRR = 16000000 / (16 * 9600) = 104.166
-	USART2->BRR = 0x683;
+	USART2->BRR = 0x0683; //Default baud rate is 9600
 	// ========================================================================
 	// STEP 5: ENABLE USART, TX, AND RX
 	// ========================================================================
@@ -70,17 +73,34 @@ void UART2_Init(uint32_t baudrate) {
 
 	    // Flush any garbage data
 	    for (volatile int i = 0; i < 1000; i++);
-	    if (USART2->SR & (1 << 5)) {
+	    if (USART2->SR & (1 << 5))
+	    {
 	        volatile uint32_t temp = USART2->DR;
 	        (void)temp;
+	    }
 }
+
+void UART2_SetBaud(uint32_t baud)
+{
+ USART2->CR1 &= ~(1 << 13); // Disable USART
+ uint32_t pclk = get_apb1_freq_hz();
+ uint32_t mantissa = pclk / (16 * baud);
+ uint32_t fraction = ((pclk % (16 * baud)) * 16 + (8 * baud)) / (16 * baud);
+ if (fraction >= 16)
+ {
+  mantissa++;
+  fraction = 0;
+ }
+ USART2->BRR = (mantissa << 4) | (fraction & 0xF);
+ USART2->CR1 |= (1 << 13);
 }
 
 // ============================================================================
 // TRANSMIT FUNCTIONS
 // ============================================================================
 
-void UART2_SendChar(char ch) {
+void UART2_SendChar(char ch)
+{
     // ========================================================================
     // WAIT FOR TXE FLAG (Transmit Data Register Empty)
     // ========================================================================
@@ -103,13 +123,15 @@ void UART2_SendChar(char ch) {
 }
 
 
-void UART2_SendString(char *str) {
+void UART2_SendString(char *str)
+{
     // ========================================================================
     // TRANSMIT EACH CHARACTER UNTIL NULL TERMINATOR
     // ========================================================================
 
     // Loop through string until '\0'
-    while (*str) {
+    while (*str)
+    {
         UART2_SendChar(*str);  // Send current character
         str++;                 // Move to next character
     }
@@ -127,7 +149,8 @@ void UART2_SendString(char *str) {
 // RECEIVE FUNCTIONS
 // ============================================================================
 
-char UART2_ReadChar(void) {
+char UART2_ReadChar(void)
+{
     // Wait for data (buffer not empty)
     while (rx_head == rx_tail);
 
@@ -138,7 +161,8 @@ char UART2_ReadChar(void) {
     rx_tail++;
 
     // Wrap around if needed
-    if (rx_tail >= RX_BUFFER_SIZE) {
+    if (rx_tail >= RX_BUFFER_SIZE)
+    {
         rx_tail = 0;
     }
 
@@ -161,7 +185,8 @@ DR & 0xFF = 0b001000001 = 0x41 = 'A' ✓
 */
 
 
-uint8_t UART2_DataAvailable(void) {
+uint8_t UART2_DataAvailable(void)
+{
     return (rx_head != rx_tail);
 }
 
@@ -169,9 +194,11 @@ uint8_t UART2_DataAvailable(void) {
 // INTERRUPT SERVICE ROUTINE
 // ============================================================================
 
-void USART2_IRQHandler(void) {
+void USART2_IRQHandler(void)
+{
     // Check if RXNE (byte received)
-    if (USART2->SR & (1 << 5)) {
+    if (USART2->SR & (1 << 5))
+    {
         // Read byte (clears RXNE flag)
         char received_byte = USART2->DR;
 
@@ -182,7 +209,8 @@ void USART2_IRQHandler(void) {
         rx_head++;
 
         // Wrap around if needed
-        if (rx_head >= RX_BUFFER_SIZE) {
+        if (rx_head >= RX_BUFFER_SIZE)
+        {
             rx_head = 0;
         }
     }

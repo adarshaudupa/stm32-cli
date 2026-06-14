@@ -21,12 +21,14 @@
  * @note   Configures PA2 (TX) and PA3 (RX) as AF7
  * @note   Assumes 16 MHz APB1 clock
  */
-void UART2_Init(uint32_t baudrate);
+void UART2_Init(void);
 /**
  * @brief  Transmit a single character (blocking)
  * @param  ch: Character to send
  * @note   Waits for TXE flag before writing to DR
  */
+
+void UART2_SetBaud(uint32_t baudrate);
 void UART2_SendChar(char ch);
 
 /**
