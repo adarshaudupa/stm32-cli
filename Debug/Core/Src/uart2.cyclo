@@ -1,7 +1,6 @@
-../Core/Src/uart2.c:26:6:UART2_Init	3
-../Core/Src/uart2.c:83:6:UART2_SetBaud	2
-../Core/Src/uart2.c:102:6:UART2_SendChar	2
-../Core/Src/uart2.c:126:6:UART2_SendString	2
-../Core/Src/uart2.c:152:6:UART2_ReadChar	3
-../Core/Src/uart2.c:188:9:UART2_DataAvailable	1
-../Core/Src/uart2.c:197:6:USART2_IRQHandler	3
+../Core/Src/uart2.c:9:6:UART2_Init	1
+../Core/Src/uart2.c:28:6:DMA1_Init	2
+../Core/Src/uart2.c:46:6:UART2_SetBaud	2
+../Core/Src/uart2.c:57:6:UART2_SendChar	2
+../Core/Src/uart2.c:63:6:UART2_SendString	2
+../Core/Src/uart2.c:71:6:USART2_IRQHandler	3

@@ -6,11 +6,19 @@
  *
  * Register-level implementation (no HAL)
  */
+#include<stdint.h>
 
 #ifndef INC_UART2_H_
 #define INC_UART2_H_
 
-#include<stdint.h>
+#define RX_BUFFER_SIZE 256
+extern volatile uint8_t  packet_ready;
+extern volatile uint16_t packet_length;
+extern char rx_buffer[RX_BUFFER_SIZE];
+
+
+
+
 // ============================================================================
 // FUNCTION PROTOTYPES
 // ============================================================================
@@ -27,7 +35,7 @@ void UART2_Init(void);
  * @param  ch: Character to send
  * @note   Waits for TXE flag before writing to DR
  */
-
+void DMA1_Init(void);
 void UART2_SetBaud(uint32_t baudrate);
 void UART2_SendChar(char ch);
 
@@ -41,13 +49,6 @@ void UART2_SendString(char *str);
  * @brief  Receive a single character (blocking)
  * @return Received character
  * @note   Waits for RXNE flag before reading from DR
- */
-char UART2_ReadChar(void);
-
-/**
- * @brief  Check if data is available to read
- * @return 1 if data ready, 0 if not
- * @note   Non-blocking check of RXNE flag
  */
 uint8_t UART2_DataAvailable(void);
 

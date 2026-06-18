@@ -36,6 +36,7 @@ int main(void)
 	cmd_buffer[0] = '\0';
 	PA5_Init(); // Enable GPIOA clock (AHB1 bus, bit 0)
     UART2_Init(); // Initialize UART2
+    DMA1_Init();  // Initialize DMA for UART2 RX
     TIM2_Init(); // Initialize TIM2 (but don't start it)
     timer_stop();  // Make sure it's stopped initially
     UART2_SendString("---STM32 CLI---\r\n");
@@ -44,66 +45,72 @@ int main(void)
 
     while(1)
         {
-            char c = UART2_ReadChar(); // Extracts each character
+            if(packet_ready)
+			{
+				packet_ready = 0;
 
-            // ====================================================================
-            // STATE MACHINE 1: ARROW KEY INTERCEPTOR
-            // ====================================================================
-            if (esc_state == 1)
-            {
-                if (c == '[') esc_state = 2;
-                else esc_state = 0;
-                continue;
-            }
-            else if (esc_state == 2)
-            {
-                if (c == 'A') // UP ARROW
-                {
-                    if(browse_depth >= history_count)
-                    {
-						// If we've browsed through all history, don't go further back
-                        esc_state = 0;
-                        continue;  // don't move
-					}
-                    browse_depth++;
-                    browse_index = (browse_index - 1 + HISTORY_SIZE) % HISTORY_SIZE;
-                	// Move backward in the circular buffer
+				for (uint16_t i = 0; i < packet_length; i++)
+			  {
+				char c = (char)rx_buffer[i];
 
-                    strcpy(cmd_buffer, history[browse_index]);
-                    cmd_index = strlen(cmd_buffer);
-
-                    // UI TRICK: Clear the current terminal line with spaces, then print history
-                    UART2_SendString("\r>                                 \r> ");
-                    UART2_SendString(cmd_buffer);
-                }
-
-                else if (c == 'B') // DOWN ARROW
-                {
-                	if(browse_depth == 0)
+				// ====================================================================
+				// STATE MACHINE 1: ARROW KEY INTERCEPTOR
+				// ====================================================================
+				if (esc_state == 1)
+				{
+					if (c == '[') esc_state = 2;
+					else esc_state = 0;
+					continue;
+				}
+				else if (esc_state == 2)
 					{
-						esc_state = 0;
-						continue;  // don't move
+					if (c == 'A') // UP ARROW
+					{
+						if(browse_depth >= history_count)
+						{
+							// If we've browsed through all history, don't go further back
+							esc_state = 0;
+							continue;  // don't move
+						}
+						browse_depth++;
+						browse_index = (browse_index - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+						// Move backward in the circular buffer
+
+						strcpy(cmd_buffer, history[browse_index]);
+						cmd_index = strlen(cmd_buffer);
+
+						// UI TRICK: Clear the current terminal line with spaces, then print history
+						UART2_SendString("\r>                                 \r> ");
+							UART2_SendString(cmd_buffer);
+						}
+
+						else if (c == 'B') // DOWN ARROW
+						{
+							if(browse_depth == 0)
+							{
+								esc_state = 0;
+								continue;  // don't move
+							}
+							browse_depth--;
+							browse_index = (browse_index + 1) % HISTORY_SIZE;
+							// Move forward in the circular buffer
+							strcpy(cmd_buffer, history[browse_index]);
+							cmd_index = strlen(cmd_buffer);
+
+							// UI TRICK: Clear the current terminal line with spaces, then print history
+							UART2_SendString("\r>                                 \r> ");
+							UART2_SendString(cmd_buffer);
+						}
+					esc_state = 0; // Sequence complete, reset interceptor
+
+					continue;
 					}
-                	browse_depth--;
-                	browse_index = (browse_index + 1) % HISTORY_SIZE;
-                    // Move forward in the circular buffer
-                    strcpy(cmd_buffer, history[browse_index]);
-                    cmd_index = strlen(cmd_buffer);
 
-                    // UI TRICK: Clear the current terminal line with spaces, then print history
-                    UART2_SendString("\r>                                 \r> ");
-                    UART2_SendString(cmd_buffer);
-                }
-                esc_state = 0; // Sequence complete, reset interceptor
-
-                continue;
-            }
-
-            if (c == '\x1B') // ESC character detected
-            {
-                esc_state = 1;
-                continue;
-            }
+				if (c == '\x1B') // ESC character detected
+				{
+            	   esc_state = 1;
+            	   continue;
+				}
 
             // ====================================================================
             // STATE MACHINE 2: NORMAL CHARACTER PROCESSING
@@ -216,6 +223,9 @@ int main(void)
                 cmd_buffer[cmd_index] = '\0'; // Always maintain null termination
                 UART2_SendChar(c); // Echo character
             }
+		   }
+			packet_length = 0; // Reset for next packet
+		  }
         }
     }
 
