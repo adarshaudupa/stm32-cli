@@ -1,53 +1,52 @@
 # STM32 UART CLI
 
-**Interrupt-driven command-line interface for STM32F446RE using bare-metal register programming**
+**Bare-metal UART command-line interface for STM32F446RE with DMA + Idle Line Detection**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
-##  Overview
+## Overview
 
-A production-grade UART CLI implementation for the STM32F446RE Nucleo board, built entirely from register-level programming without HAL abstractions. This project demonstrates professional embedded firmware practices: interrupt-driven I/O, circular buffer management, robust command parsing, and clean driver architecture.
+A hardware bring-up CLI for the STM32F446RE Nucleo board, built entirely from register-level programming with zero HAL abstractions. Receives commands over UART using DMA + Idle Line Detection — no per-byte interrupts, no polling. The CPU is notified only when a complete packet arrives.
 
-**Core Philosophy:** No HAL, no Arduino libraries—just direct register access, reference manual, and first-principles understanding of ARM Cortex-M4 peripherals.
+**Core Philosophy:** No HAL, no Arduino libraries — direct register access, reference manual, and first-principles understanding of ARM Cortex-M4 peripherals.
 
 ---
 
-##  Features
+## Features
 
 ### UART Communication
-- **Interrupt-driven RX**: RXNE interrupt with 64-byte circular buffer
-- **Polling TX**: Blocking transmit optimized for debug output
-- **Manual BRR calculation** from APB1 clock frequency (115200 baud)
-- **Echo and backspace handling** for real terminal feel
+- **DMA RX with Idle Line Detection**: DMA1 Stream5 absorbs incoming bytes autonomously; IDLE interrupt fires at packet boundary — zero per-byte CPU overhead
+- **Blocking TX**: Spin-on-TXE transmit, suitable for debug CLI output
+- **Dynamic baud rate reconfiguration** at runtime via `SET BAUD <rate>` command
+- **Echo and backspace handling** for real terminal behaviour
 - **Command buffering** with overflow protection
 
 ### Command Parser
-- Space-delimited tokenization
-- Case-sensitive command matching
-- Built-in error handling and help system
-- Extensible command table structure
+- Stateful ESC sequence interceptor for arrow key handling
+- Command history (last 5 commands) with up/down arrow navigation
+- Case-sensitive command matching with built-in error handling
+- Extensible command structure
 
 ### LED Control
-- Direct register manipulation (no abstraction layers)
-- Multiple control modes: manual ON/OFF, BLINK, STATUS query
-- Integrated with timer-based state machine
+- Direct ODR/BSRR register manipulation
+- Manual ON/OFF, STATUS query, and TIM2 interrupt-driven 1Hz auto-blink
+- Blink frequency configurable at runtime
 
-### Professional Code Quality
-- Clean separation of concerns (driver vs. application logic)
-- CMSIS-compliant register access
-- Volatile-correct ISR implementation
+### Driver Architecture
+- Modular bare-metal drivers: `uart2.c`, `tim2.c`, `gpio.c`
+- ISR sets a flag; all processing done in main loop — no business logic in interrupt context
 - Zero dynamic memory allocation
 
 ---
 
-##  Hardware Requirements
+## Hardware Requirements
 
 | Component | Specification |
 |-----------|--------------|
 | **Board** | STM32 Nucleo-F446RE |
-| **MCU** | STM32F446RET6 (ARM Cortex-M4, 180 MHz) |
+| **MCU** | STM32F446RET6 (ARM Cortex-M4, 16 MHz HSI) |
 | **LED** | PA5 (LD2, onboard green LED) |
 | **UART** | USART2 via ST-LINK Virtual COM Port |
 | **Connections** | USB cable only (no external hardware) |
@@ -62,7 +61,7 @@ A production-grade UART CLI implementation for the STM32F446RE Nucleo board, bui
 
 ---
 
-##  Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -72,59 +71,57 @@ A production-grade UART CLI implementation for the STM32F446RE Nucleo board, bui
 
 ### Build and Flash
 
-#### Option 1: STM32CubeIDE
-```bash
+#### STM32CubeIDE
+```
 1. File → Import → Existing Projects into Workspace
 2. Select repository directory
 3. Project → Build All (Ctrl+B)
 4. Run → Debug (F11) or Run (Ctrl+F11)
 ```
 
-#### Option 2: Command Line
+#### Command Line
 ```bash
-git clone https://github.com/adarshaudupa/stm32-uart-cli.git
-cd stm32-uart-cli
+git clone https://github.com/adarshaudupa/stm32-cli.git
+cd stm32-cli
 make clean && make
-st-flash write build/stm32-uart-cli.bin 0x8000000
+st-flash write build/stm32-cli.bin 0x8000000
 ```
 
 ### Connect Terminal
 
 **Linux/macOS:**
 ```bash
-screen /dev/ttyACM0 115200
+screen /dev/ttyACM0 9600
 # or
-minicom -D /dev/ttyACM0 -b 115200
+minicom -D /dev/ttyACM0 -b 9600
 ```
 
 **Windows:**
 ```
 Open PuTTY or Tera Term
 COM Port: Check Device Manager for "STMicroelectronics Virtual COM Port"
-Baud: 115200
-Data: 8 bits
-Parity: None
-Stop: 1 bit
-Flow control: None
+Baud: 9600
+Data: 8 bits, Parity: None, Stop: 1 bit, Flow control: None
 ```
 
 ---
 
-##  Usage
+## Usage
 
 ### Sample Session
 
 ```
---- STM32 UART CLI ---
+---STM32 CLI---
 Type HELP for commands
 
 > HELP
 Available commands:
-  LED ON    - Turn LED on
-  LED OFF   - Turn LED off
-  BLINK     - Blink LED
-  STATUS    - Check LED state
-  HELP      - Show this help
+  LED ON         - Turn LED on
+  LED OFF        - Turn LED off
+  BLINK          - Blink LED at 1Hz
+  STATUS         - Check LED state
+  SET BAUD <rate> - Set UART baud rate
+  HELP           - Show this help
 
 > LED ON
 LED turned ON
@@ -132,158 +129,164 @@ LED turned ON
 > STATUS
 LED is ON
 
-> STATUS
-LED is OFF
-
 > BLINK
-LED auto-blink enabled (1 Hz)
+LED auto-blinking at 1 Hz
+
+> SET BAUD 115200
+Changing baud rate to 115200...
+Please update your serial terminal to match!
 ```
 
 ### Supported Commands
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `LED ON` | Force LED on | `> LED ON` |
-| `LED OFF` | Force LED off | `> LED OFF` |
-| `STATUS` | Display current LED state | `> STATUS` |
-| `BLINK` | Enable timer-controlled auto-blink | `> BLINK` |
-| `HELP` | Show command list | `> HELP` |
+| Command | Description |
+|---------|-------------|
+| `LED ON` | Force LED on, stops blink if active |
+| `LED OFF` | Force LED off, stops blink if active |
+| `BLINK` | Enable TIM2-driven 1Hz auto-blink |
+| `STATUS` | Report current LED state from ODR |
+| `SET BAUD <rate>` | Reconfigure USART2 baud rate at runtime |
+| `HELP` | Show command list |
 
-**Error Handling:**
+**Arrow key navigation:**
+- `↑` — scroll back through command history (last 5 commands)
+- `↓` — scroll forward through command history
+
+---
+
+## Technical Deep Dive
+
+### RX Architecture: DMA + Idle Line Detection
+
+The key design decision: instead of an RXNE interrupt firing on every byte, DMA handles all byte transfers autonomously while the CPU waits for an IDLE event signalling end-of-packet.
+
 ```
-> INVALID_CMD
-Unknown command: INVALID_CMD
-Type HELP for commands
+Sender types 'L', 'E', 'D', ' ', 'O', 'N', '\r'
+         ↓
+DMA1 Stream5 writes each byte to rx_buffer[] as they arrive (no CPU involvement)
+         ↓
+Line goes idle → IDLE flag fires → USART2_IRQHandler
+         ↓
+ISR: compute packet_length = RX_BUFFER_SIZE - DMA1_Stream5->NDTR
+     reset DMA, set packet_ready = 1
+         ↓
+Main loop: iterate rx_buffer[0..packet_length], run state machine
+```
+
+#### DMA Configuration (Register-Level)
+
+```c
+RCC->AHB1ENR |= (1 << 21);           // DMA1 clock
+
+DMA1_Stream5->CR = 0;
+while (DMA1_Stream5->CR & (1 << 0)); // Wait until disabled
+
+DMA1_Stream5->CR  |= (4 << 25);      // Channel 4: USART2_RX
+DMA1_Stream5->CR  &= ~((3 << 11) | (3 << 13)); // PSIZE=byte, MSIZE=byte
+DMA1_Stream5->CR  |= (1 << 10);      // MINC: memory increment
+DMA1_Stream5->PAR  = (uint32_t)&USART2->DR;
+DMA1_Stream5->M0AR = (uint32_t)rx_buffer;
+DMA1_Stream5->NDTR = RX_BUFFER_SIZE;
+
+DMA1_Stream5->CR  |= (1 << 0);       // EN: enable stream
+```
+
+#### ISR: Idle Detection + DMA Reset
+
+```c
+void USART2_IRQHandler(void)
+{
+    if (USART2->SR & (1 << 4))        // IDLE flag
+    {
+        volatile uint32_t tmp = USART2->SR;
+        tmp = USART2->DR;              // Mandatory SR→DR read to clear IDLE
+        (void)tmp;
+
+        packet_length = RX_BUFFER_SIZE - DMA1_Stream5->NDTR;
+
+        DMA1_Stream5->CR &= ~(1 << 0);
+        while (DMA1_Stream5->CR & (1 << 0));
+        DMA1->HIFCR |= (0x3F << 6);   // Clear Stream5 interrupt flags (critical)
+        DMA1_Stream5->NDTR = RX_BUFFER_SIZE;
+        DMA1_Stream5->M0AR = (uint32_t)rx_buffer;
+        DMA1_Stream5->CR  |= (1 << 0);
+
+        packet_ready = 1;
+    }
+}
+```
+
+> **Why `HIFCR` matters:** Without clearing Stream5's interrupt flags in `DMA1->HIFCR` before re-enabling, stale transfer-complete or error flags cause the re-armed stream to misbehave immediately. This was identified during debug as the root cause of the "receives one byte, then stalls" failure mode.
+
+#### Main Loop Consumption
+
+```c
+if (packet_ready)
+{
+    packet_ready = 0;
+
+    for (uint16_t i = 0; i < packet_length; i++)
+    {
+        char c = (char)rx_buffer[i];
+        // ESC sequence interceptor + command state machine
+    }
+
+    packet_length = 0;
+}
+```
+
+### Baud Rate Calculation
+
+```c
+// Formula: BRR = fPCLK / (16 × baud), fractional part in lower nibble
+// APB1 clock = 16 MHz (HSI default)
+// 9600 baud: BRR = 0x0683
+
+void UART2_SetBaud(uint32_t baud)
+{
+    USART2->CR1 &= ~(1 << 13);        // Disable USART
+    uint32_t pclk     = get_apb1_freq_hz();
+    uint32_t mantissa = pclk / (16 * baud);
+    uint32_t fraction = ((pclk % (16 * baud)) * 16 + (8 * baud)) / (16 * baud);
+    if (fraction >= 16) { mantissa++; fraction = 0; }
+    USART2->BRR = (mantissa << 4) | (fraction & 0xF);
+    USART2->CR1 |= (1 << 13);         // Re-enable USART
+}
+```
+
+### Command History
+
+Circular buffer of the last 5 commands. Arrow key ESC sequences (`\x1B`, `[`, `A`/`B`) are intercepted by a dedicated state machine before the main command processor sees them.
+
+```c
+#define HISTORY_SIZE 5
+char history[HISTORY_SIZE][CMD_BUFFER_SIZE];
+uint8_t write_index  = 0;   // Next slot to write
+uint8_t browse_index = 0;   // Current scroll position
+uint8_t browse_depth = 0;   // How far back we've scrolled
 ```
 
 ---
 
-##  Technical Deep Dive
-
-### UART Configuration (Register-Level)
-
-#### Clock Setup
-```c
-// Enable peripheral clocks
-RCC->AHB1ENR |= (1 << 0);   // GPIOA clock
-RCC->APB1ENR |= (1 << 17);  // USART2 clock (APB1 bus)
-```
-
-#### GPIO Alternate Function
-```c
-// PA2 (TX) and PA3 (RX) to AF mode
-GPIOA->MODER &= ~((3 << 4) | (3 << 6));  // Clear mode bits
-GPIOA->MODER |= (2 << 4) | (2 << 6);     // Set AF mode (0b10)
-
-// Select AF7 (USART2) for PA2/PA3
-GPIOA->AFR[0] &= ~((0xF << 8) | (0xF << 12));
-GPIOA->AFR[0] |= (7 << 8) | (7 << 12);
-```
-
-#### Baud Rate Calculation
-```c
-// Formula: BRR = fPCLK / (16 × baud)
-// APB1 clock = 16 MHz (HSI, default after reset)
-// Target baud = 115200
-// BRR = 16000000 / (16 × 115200) ≈ 8.68 → 0x8B (8 mantissa, 11 fractional)
-USART2->BRR = 0x8B;
-```
-
-#### Enable USART and Interrupts
-```c
-USART2->CR1 |= (1 << 13);  // UE: USART enable
-USART2->CR1 |= (1 << 3);   // TE: Transmitter enable
-USART2->CR1 |= (1 << 2);   // RE: Receiver enable
-USART2->CR1 |= (1 << 5);   // RXNEIE: RX interrupt enable
-
-// Enable USART2 interrupt in NVIC
-NVIC_EnableIRQ(USART2_IRQn);
-```
-
-### Circular Buffer (Interrupt-Driven RX)
-
-#### Buffer Structure
-```c
-#define RX_BUFFER_SIZE 256
-volatile char rx_buffer[RX_BUFFER_SIZE];
-volatile uint8_t rx_head = 0;  // ISR writes here
-volatile uint8_t rx_tail = 0;  // Main reads here
-```
-
-#### ISR (Producer)
-```c
-void USART2_IRQHandler(void) {
-    if (USART2->SR & (1 << 5)) {  // RXNE flag set?
-        char received_byte = USART2->DR;  // Reading DR clears RXNE
-        
-        rx_buffer[rx_head] = received_byte;
-        rx_head = (rx_head + 1) % RX_BUFFER_SIZE;  // Circular wrap
-        
-        // Note: Overflow handling omitted for brevity
-    }
-}
-```
-
-#### Main Loop (Consumer)
-```c
-char UART2_ReadChar(void) {
-    while (rx_head == rx_tail);  // Wait for data
-    
-    char c = rx_buffer[rx_tail];
-    rx_tail = (rx_tail + 1) % RX_BUFFER_SIZE;
-    return c;
-}
-```
-
-### Command Parser Architecture
-
-```c
-// Command buffer with overflow protection
-#define CMD_BUFFER_SIZE 32
-char cmd_buffer[CMD_BUFFER_SIZE];
-uint8_t cmd_index = 0;
-
-// Main parsing loop
-while (1) {
-    char c = UART2_ReadChar();
-    
-    if (c == '\r' || c == '\n') {  // Enter pressed
-        cmd_buffer[cmd_index] = '\0';
-        execute_command(cmd_buffer);
-        cmd_index = 0;
-    }
-    else if (c == 127 || c == 8) {  // Backspace/DEL
-        if (cmd_index > 0) {
-            cmd_index--;
-            UART2_SendString("\b \b");  // Erase character on screen
-        }
-    }
-    else if (cmd_index < CMD_BUFFER_SIZE - 1) {
-        cmd_buffer[cmd_index++] = c;
-        UART2_SendChar(c);  // Echo
-    }
-}
-```
-
----
-
-##  Project Structure
+## Project Structure
 
 ```
-stm32-uart-cli/
+stm32-cli/
 ├── Core/
 │   ├── Inc/
-│   │   ├── main.h
-│   │   ├── uart.h          # USART2 driver header
-│   │   └── gpio.h          # GPIO helper functions
+│   │   ├── uart2.h         # USART2 + DMA driver header
+│   │   ├── tim2.h          # TIM2 driver + LED state enum
+│   │   ├── gpio.h          # GPIO helpers
+│   │   └── clock.h         # APB clock frequency utilities
 │   └── Src/
-│       ├── main.c          # CLI application logic
-│       ├── uart.c          # USART2 driver implementation
-│       ├── gpio.c          # GPIO initialization
+│       ├── main.c          # CLI application + command state machine
+│       ├── uart2.c         # USART2 + DMA1 driver (ISR included)
+│       ├── tim2.c          # TIM2 init + IRQ handler (LED blink)
+│       ├── gpio.c          # PA5 LED, PC13 button init
+│       ├── clock.c         # RCC clock tree read utilities
 │       └── syscalls.c      # Newlib stubs
 ├── Drivers/
 │   └── CMSIS/              # Vendor CMSIS headers (unchanged)
-├── Debug/                  # Build artifacts (gitignored)
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -291,67 +294,27 @@ stm32-uart-cli/
 
 ---
 
-##  Learning Outcomes
+## Known Issues and Limitations
 
-This project demonstrates:
-
-1. **Peripheral Programming**
-   - RCC clock tree management (AHB1, APB1 buses)
-   - GPIO alternate function configuration
-   - USART register-level setup (BRR, CR1, SR, DR)
-
-2. **Interrupt Handling**
-   - NVIC priority and enable sequence
-   - ISR flag clearing and data handling
-   - Avoiding race conditions with `volatile`
-
-3. **Data Structures**
-   - Circular buffer implementation
-   - Modulo arithmetic for index wrapping
-   - Producer-consumer pattern
-
-4. **String Processing**
-   - Custom tokenization without `strtok()`
-   - Command parsing and validation
-   - Memory-safe buffer handling
-
-5. **Embedded Design Patterns**
-   - Interrupt-driven I/O (non-blocking RX)
-   - Polling TX (acceptable for debug output)
-   - State machine integration (LED control modes)
+| Issue | Impact | Status |
+|-------|--------|--------|
+| TX is blocking | Main loop spins during long prints | Acceptable for CLI; DMA TX is a future upgrade |
+| Fixed buffer size (256B) | Commands beyond 256 bytes truncated | Non-issue for CLI use case |
+| No hardware flow control | Potential loss at very high baud rates | Use `SET BAUD` conservatively |
 
 ---
 
-##  Known Issues and Limitations
+## Roadmap
 
-| Issue | Impact | Workaround |
-|-------|--------|------------|
-| TX is blocking | Main loop freezes during long prints | Use DMA for TX (planned) |
-| No command history | Can't recall previous commands | Add ring buffer with up/down arrow support |
-| Fixed buffer size | Long commands truncated | Increase `CMD_BUFFER_SIZE` or add dynamic allocation |
-| No hardware flow control | Potential data loss at high speeds | Implement RTS/CTS if needed |
-
----
-
-##  Roadmap
-
-### Planned Features
-- [ ] **Timer Integration**: Non-blocking `BLINK` command using TIM2 interrupts
-- [ ] **DMA TX**: High-throughput logging without blocking
-- [ ] **I2C Sensor Commands**: Read accelerometer/gyro data via CLI
-- [ ] **Command History**: Up/down arrow key navigation
-- [ ] **Auto-completion**: Tab completion for commands
-- [ ] **Multi-LED Patterns**: PWM-based brightness control
-
-### Architecture Improvements
-- [ ] Migrate to event-driven state machine
-- [ ] Add unit tests for command parser
-- [ ] Implement watchdog timer for safety
-- [ ] Low-power modes between commands
+- [ ] **DMA TX** — non-blocking transmit for high-throughput logging
+- [ ] **SPI driver** — register-level SPI peripheral driver
+- [ ] **I2C sensor commands** — read IMU data via CLI
+- [ ] **PWM commands** — timer-based LED brightness control
+- [ ] **Watchdog integration** — safety reset on CLI hang
 
 ---
 
-##  References
+## References
 
 - [STM32F446xx Reference Manual (RM0390)](https://www.st.com/resource/en/reference_manual/rm0390-stm32f446xx-advanced-armbased-32bit-mcus-stmicroelectronics.pdf)
 - [STM32F446RE Datasheet](https://www.st.com/resource/en/datasheet/stm32f446re.pdf)
@@ -360,36 +323,17 @@ This project demonstrates:
 
 ---
 
-##  Contributing
+## License
 
-This is a personal learning project, but suggestions and improvements are welcome:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/improvement`)
-3. Commit changes with clear messages
-4. Push and open a Pull Request
-
-**Focus areas for contributions:**
-- Bug fixes in edge cases
-- Performance optimizations
-- Additional command implementations
-- Documentation improvements
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
-##  License
+## Author
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
-**TL;DR:** Free to use, modify, and distribute. Just keep the copyright notice.
-
----
-
-##  Author
-
-**Adarsha Udupa Baikady**  
-Undergraduate | Electronics & Instrumentation Engineering  
-Focus: Embedded Systems & Firmware Development
+**Adarsha Udupa Baikady**
+Undergraduate | Electronics & Instrumentation Engineering
+Focus: Embedded Systems & Bare-Metal Firmware
 
 - GitHub: [@adarshaudupa](https://github.com/adarshaudupa)
 - LinkedIn: [adarsha-udupa-baikady](https://www.linkedin.com/in/adarsha-udupa-baikady-327a54219)
@@ -397,14 +341,4 @@ Focus: Embedded Systems & Firmware Development
 
 ---
 
-##  Acknowledgments
-
-Built as part of my bare-metal STM32 learning journey, with guidance from:
-- STM32 community forums and Discord servers
-- Fastbit Embedded Brain Academy YouTube tutorials
-- *Mastering STM32* by Carmine Noviello
-- Direct mentorship and code reviews
-
----
-
-**Built with no HAL, no Arduino—just registers, datasheets, and determination.**
+**Built with no HAL, no Arduino — just registers, reference manuals, and first principles.**
